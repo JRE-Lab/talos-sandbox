@@ -26,6 +26,7 @@
   --c-monitor:     #f2c14e;
   --c-executor:    #3fcf8e;
   --c-fleet:       #6fd0d6;
+  --c-diagnostician: #a78bfa;
 
   --emph-reject:   #ff5a6a;
   --emph-rollback: #ff9d4d;
@@ -427,6 +428,8 @@ h2 {
 .ev.actor-executor .ev-actor { color: var(--c-executor); }
 .ev.actor-fleet    { border-left-color: var(--c-fleet); }
 .ev.actor-fleet    .ev-actor { color: var(--c-fleet); }
+.ev.actor-diagnostician { border-left-color: var(--c-diagnostician); }
+.ev.actor-diagnostician .ev-actor { color: var(--c-diagnostician); }
 
 /* type-specific chips & emphasis */
 .chip {

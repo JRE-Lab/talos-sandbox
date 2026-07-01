@@ -34,7 +34,7 @@
   var MAX_GAP_S = 3.0;          // clamp long soaks in normal Play
   var FF_GAP_S = 0.12;          // fast-forward collapses gaps
 
-  var ACTORS = ["system", "planner", "critic", "monitor", "executor", "fleet"];
+  var ACTORS = ["system", "planner", "critic", "monitor", "executor", "fleet", "diagnostician"];
 
   // --------------------------------------------------------------------------
   // DOM handles
@@ -723,6 +723,7 @@
     s1: 'Clean rollout &mdash; press <b>Play</b> and watch every gate pass: canary &rarr; ring1, fleet ends green.',
     s2: 'The Critic in action &mdash; watch it <b>REJECT</b> the reckless plan (both HA-pair hosts at once), then approve the safe revision. Press <b>Step</b> to read each turn.',
     s3: 'Watch the <b>soak timer</b> &mdash; the new build breaches mid-soak and TALOS <b>auto-rolls-back</b> the canary. Caught before the fleet.',
+    s3c: 'The <b>headline</b> &mdash; caught &amp; rolled back, then a <b>Diagnostician</b> diagnoses the regression and TALOS <b>auto-heals</b> forward to the fixed 2.1.6. No human in the loop.',
     s3b: 'The regression clears the canary but breaches <b>after promotion</b> &rarr; a fleet-scale rollback. The gates still catch it.',
     s4: 'Audit demo &mdash; after it plays, click <b>Verify</b> (chain OK), then <b>Tamper</b> a record and Verify again &mdash; it <b>FAILS</b> at that link.'
   };

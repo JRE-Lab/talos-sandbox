@@ -1,0 +1,257 @@
+{
+  "id": "s3c",
+  "name": "Regression → auto-heal",
+  "summary": "Build 2.1.5 breaches on the canary and rolls back — then a Diagnostician diagnoses the regression and TALOS auto-heals the fleet forward to the patched 2.1.6. No human in the loop.",
+  "moment": "caught, contained, diagnosed, and auto-healed to the fixed build — autonomously",
+  "events": [
+    {
+      "seq": 0,
+      "t": 0.0,
+      "type": "topology",
+      "actor": "system",
+      "title": "Fleet topology loaded",
+      "body": "Three hosts under management: TALOS-CANARY (canary), and the ring1 HA pair TALOS-R1A / TALOS-R1B. All on baseline 2.1.3, all green.",
+      "data": {
+        "hosts": [
+          { "host": "TALOS-CANARY", "ring": "canary", "ha_pair": null, "version": "2.1.3", "health": "green" },
+          { "host": "TALOS-R1A", "ring": "ring1", "ha_pair": "TALOS-R1B", "version": "2.1.3", "health": "green" },
+          { "host": "TALOS-R1B", "ring": "ring1", "ha_pair": "TALOS-R1A", "version": "2.1.3", "health": "green" }
+        ]
+      }
+    },
+    {
+      "seq": 1,
+      "t": 1.0,
+      "type": "directive",
+      "actor": "system",
+      "title": "Directive received",
+      "body": "Deploy hotfix build 2.1.5 to the fleet, canary first. Auto-heal is enabled: on a contained regression, TALOS may roll forward to a known-good build on its own.",
+      "data": { "text": "Deploy 2.1.5 to the fleet, canary first. Auto-heal on regression.", "urgency": "urgent", "auto_fix": true }
+    },
+    {
+      "seq": 2,
+      "t": 3.0,
+      "type": "plan",
+      "actor": "planner",
+      "title": "Standard staged plan",
+      "body": "Canary TALOS-CANARY first, soak 120s under the canary gate. If it passes, request approval for ring1 and update the HA pair one host at a time.",
+      "data": {
+        "steps": [
+          { "ring": "canary", "action": "deploy", "hosts": ["TALOS-CANARY"], "soak_s": 120 },
+          { "ring": "ring1", "action": "deploy", "hosts": ["TALOS-R1A"], "soak_s": 120 },
+          { "ring": "ring1", "action": "deploy", "hosts": ["TALOS-R1B"], "soak_s": 120 }
+        ],
+        "rationale": "Even for an urgent hotfix, canary-first staging gives the gate a chance to catch a regression before it reaches production.",
+        "risk": "low"
+      }
+    },
+    {
+      "seq": 3,
+      "t": 5.0,
+      "type": "verdict",
+      "actor": "critic",
+      "title": "Plan approved",
+      "body": "Conservative, canary-first, sequential HA-pair updates. Approved.",
+      "data": {
+        "decision": "approve",
+        "reasons": [
+          "Canary precedes production, so a regression is caught on a non-production host.",
+          "Ring1 gated behind human approval.",
+          "HA pair updated sequentially."
+        ]
+      }
+    },
+    {
+      "seq": 4,
+      "t": 6.0,
+      "type": "deploy",
+      "actor": "executor",
+      "title": "Deploying TALOS-CANARY → 2.1.5",
+      "body": "Executor pushes 2.1.5 to TALOS-CANARY and starts the health trajectory. The regression in this build is timer-driven: it holds baseline for a few seconds, then degrades.",
+      "data": { "host": "TALOS-CANARY", "from_version": "2.1.3", "to_version": "2.1.5" }
+    },
+    {
+      "seq": 5,
+      "t": 7.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-CANARY green on 2.1.5 (so far)",
+      "body": "Initial health is good — service running, HTTP 200, memory nominal. The build looks fine at first.",
+      "data": { "host": "TALOS-CANARY", "service_state": "Running", "http_health": 200, "eventlog_errors": 1, "memory_mb": 824, "health": "green" }
+    },
+    {
+      "seq": 6,
+      "t": 8.0,
+      "type": "soak",
+      "actor": "monitor",
+      "title": "Canary soak started",
+      "body": "Soaking TALOS-CANARY for 120s under the canary gate. The Monitor watches memory, HTTP health, and event-log errors across the whole window — this is exactly when a delayed regression shows up.",
+      "data": { "ring": "canary", "duration_s": 120, "remaining_s": 120 }
+    },
+    {
+      "seq": 7,
+      "t": 38.0,
+      "type": "soak",
+      "actor": "monitor",
+      "title": "Canary soak — 30s in",
+      "body": "30s elapsed. Memory is starting to creep up from baseline. Still inside thresholds, but the trend is wrong.",
+      "data": { "ring": "canary", "duration_s": 120, "remaining_s": 90 }
+    },
+    {
+      "seq": 8,
+      "t": 48.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-CANARY AMBER — memory climbing",
+      "body": "Memory has climbed to 1320MB and error count is rising. Health flips to amber. The Monitor is now watching closely.",
+      "data": { "host": "TALOS-CANARY", "service_state": "Running", "http_health": 200, "eventlog_errors": 4, "memory_mb": 1320, "health": "amber" }
+    },
+    {
+      "seq": 9,
+      "t": 58.0,
+      "type": "soak",
+      "actor": "monitor",
+      "title": "Canary soak — 50s in, degrading",
+      "body": "50s in. The memory curve is accelerating and HTTP health is about to flip. This is the regression arming on the sim clock.",
+      "data": { "ring": "canary", "duration_s": 120, "remaining_s": 70 }
+    },
+    {
+      "seq": 10,
+      "t": 62.0,
+      "type": "breach",
+      "actor": "monitor",
+      "title": "BREACH — memory over threshold",
+      "body": "TALOS-CANARY memory_mb has crossed 1500MB — currently 1712MB. This is a hard breach of the canary gate's memory ceiling. The Monitor flags it immediately, mid-soak.",
+      "data": { "host": "TALOS-CANARY", "metric": "memory_mb", "value": 1712, "threshold": 1500 }
+    },
+    {
+      "seq": 11,
+      "t": 63.0,
+      "type": "breach",
+      "actor": "monitor",
+      "title": "BREACH — HTTP health failing",
+      "body": "TALOS-CANARY HTTP health has flipped 200 → 500. The service is no longer serving requests cleanly. Second breach on the same host.",
+      "data": { "host": "TALOS-CANARY", "metric": "http_health", "value": 500, "threshold": 200 }
+    },
+    {
+      "seq": 12,
+      "t": 64.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-CANARY RED",
+      "body": "Memory 1788MB, HTTP 500, 9 event-log errors. TALOS-CANARY is red on 2.1.5. The soak is abandoned — there is no point waiting out a host that is already failing the gate.",
+      "data": { "host": "TALOS-CANARY", "service_state": "Running", "http_health": 500, "eventlog_errors": 9, "memory_mb": 1788, "health": "red" }
+    },
+    {
+      "seq": 13,
+      "t": 65.0,
+      "type": "gate_eval",
+      "actor": "monitor",
+      "title": "Canary gate: FAIL",
+      "body": "TALOS-CANARY fails the canary gate on three counts — memory 1788MB > 1500, HTTP 500 ≠ 200, and 9 errors > 5. The gate blocks promotion. 2.1.5 will NOT reach production.",
+      "data": {
+        "host": "TALOS-CANARY",
+        "gate": "canary_gate",
+        "result": "fail",
+        "metrics": { "service_state": "Running", "http_health": 500, "eventlog_errors": 9, "memory_mb": 1788 },
+        "violations": [
+          "memory_mb 1788 exceeds max_memory_mb 1500",
+          "http_health 500 != required 200",
+          "eventlog_errors 9 exceeds max_eventlog_errors 5"
+        ]
+      }
+    },
+    {
+      "seq": 14,
+      "t": 66.0,
+      "type": "narration",
+      "actor": "system",
+      "title": "Gate failed — initiating rollback",
+      "body": "Because the gate failed on the canary, production ring1 was never approved and never touched. The Executor now rolls the canary back to the last known-good build.",
+      "data": { "text": "Containment worked: the regression is confined to TALOS-CANARY. Rolling back." }
+    },
+    {
+      "seq": 15,
+      "t": 67.0,
+      "type": "rollback",
+      "actor": "executor",
+      "title": "ROLLBACK TALOS-CANARY → 2.1.3",
+      "body": "Scope is a single host: TALOS-CANARY is reverted from 2.1.5 to the known-good 2.1.3. No ring hosts are affected because the gate stopped the rollout before promotion.",
+      "data": {
+        "scope": "host",
+        "hosts": ["TALOS-CANARY"],
+        "to_version": "2.1.3",
+        "reason": "canary_gate FAIL on 2.1.5 — memory and HTTP health breached during soak."
+      }
+    },
+    {
+      "seq": 16,
+      "t": 69.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-CANARY green on 2.1.3",
+      "body": "Rollback complete. TALOS-CANARY is back on 2.1.3 and green — memory nominal, HTTP 200, errors cleared. The regression is contained; now the loop doesn't stop at 'undo'.",
+      "data": { "host": "TALOS-CANARY", "service_state": "Running", "http_health": 200, "eventlog_errors": 0, "memory_mb": 798, "health": "green" }
+    },
+    {
+      "seq": 17,
+      "t": 71.0,
+      "type": "narration",
+      "actor": "diagnostician",
+      "title": "Diagnosis: software regression in 2.1.5",
+      "body": "The Diagnostician reads the failed build's signature — the service stayed Running, memory climbed steadily to ~1.7GB, and HTTP flipped to 500 under load. That pattern is a memory-leak regression in the build itself, not an environment or config fault. A patched build 2.1.6 is available. Recommendation: roll forward. Confidence: high.",
+      "data": { "text": "Signature = memory leak + HTTP 500 under load → software regression in 2.1.5. Patched build 2.1.6 available.", "recommended_version": "2.1.6", "confidence": "high", "action": "roll_forward" }
+    },
+    {
+      "seq": 18,
+      "t": 73.0,
+      "type": "deploy",
+      "actor": "executor",
+      "title": "Auto-heal: deploying TALOS-CANARY → 2.1.6",
+      "body": "Auto-heal was enabled and the diagnosis is high-confidence, so TALOS rolls forward on its own — no human, no ticket. The Executor deploys the patched 2.1.6 to TALOS-CANARY.",
+      "data": { "host": "TALOS-CANARY", "from_version": "2.1.3", "to_version": "2.1.6" }
+    },
+    {
+      "seq": 19,
+      "t": 75.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-CANARY green on 2.1.6",
+      "body": "The patched build is healthy — service running, HTTP 200, memory flat at 812MB, no new errors. The fix holds.",
+      "data": { "host": "TALOS-CANARY", "service_state": "Running", "http_health": 200, "eventlog_errors": 0, "memory_mb": 812, "health": "green" }
+    },
+    {
+      "seq": 20,
+      "t": 77.0,
+      "type": "gate_eval",
+      "actor": "monitor",
+      "title": "Canary gate: PASS on 2.1.6",
+      "body": "TALOS-CANARY clears the canary gate on the patched build — memory 812MB, HTTP 200, 0 errors, service Running. The fleet is healthy on 2.1.6.",
+      "data": {
+        "host": "TALOS-CANARY",
+        "gate": "canary_gate",
+        "result": "pass",
+        "metrics": { "service_state": "Running", "http_health": 200, "eventlog_errors": 0, "memory_mb": 812 }
+      }
+    },
+    {
+      "seq": 21,
+      "t": 79.0,
+      "type": "done",
+      "actor": "system",
+      "title": "Done — healed autonomously",
+      "body": "2.1.5 was caught at the canary, rolled back to 2.1.3, diagnosed as a software regression, and the fleet was healed forward to the patched 2.1.6 — caught, contained, diagnosed, and fixed, with no human in the loop. Every step is in the audit chain on the right.",
+      "data": { "outcome": "auto_healed", "summary": "2.1.5 regressed on the canary; rolled back to 2.1.3; diagnosed; auto-deployed the fixed 2.1.6; fleet healthy. No human in the loop." }
+    }
+  ],
+  "audit_records": [
+    { "id": 1, "action": "deploy TALOS-CANARY 2.1.3 -> 2.1.5", "actor": "executor", "ts": "2026-07-02T17:00:06Z" },
+    { "id": 2, "action": "breach TALOS-CANARY memory_mb 1712 > 1500", "actor": "monitor", "ts": "2026-07-02T17:01:02Z" },
+    { "id": 3, "action": "breach TALOS-CANARY http_health 500 != 200", "actor": "monitor", "ts": "2026-07-02T17:01:03Z" },
+    { "id": 4, "action": "gate_eval TALOS-CANARY canary_gate -> fail", "actor": "monitor", "ts": "2026-07-02T17:01:05Z" },
+    { "id": 5, "action": "rollback TALOS-CANARY 2.1.5 -> 2.1.3 scope=host", "actor": "executor", "ts": "2026-07-02T17:01:07Z" },
+    { "id": 6, "action": "diagnosis TALOS-CANARY -> roll_forward 2.1.6 (regression, high confidence)", "actor": "diagnostician", "ts": "2026-07-02T17:01:11Z" },
+    { "id": 7, "action": "deploy TALOS-CANARY 2.1.3 -> 2.1.6 (auto-heal)", "actor": "executor", "ts": "2026-07-02T17:01:13Z" },
+    { "id": 8, "action": "gate_eval TALOS-CANARY canary_gate -> pass", "actor": "monitor", "ts": "2026-07-02T17:01:17Z" }
+  ]
+}
