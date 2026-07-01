@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TALOS Sandbox — simulated fleet · real agents</title>
+  <link rel="stylesheet" href="style.css" />
+  <!--
+    VIDEO_URL injection point. DEPLOY may rewrite this script tag to set the real link.
+    The front-end reads window.VIDEO_URL and falls back to the placeholder otherwise.
+  -->
+  <script>
+    window.VIDEO_URL = window.VIDEO_URL || "REPLACE_WITH_VIDEO_URL";
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="brand">
+        <span class="brand-mark">TALOS</span>
+        <span class="brand-sub">Sandbox</span>
+      </div>
+      <span class="brand-tagline">Self-verifying fleet deployments</span>
+      <span id="sandbox-badge" class="badge-sandbox" title="The fleet is simulated. The agents are real.">SANDBOX — simulated fleet · real agents</span>
+    </div>
+    <div class="topbar-right">
+      <a id="video-link" class="video-link" href="REPLACE_WITH_VIDEO_URL" target="_blank" rel="noopener noreferrer">
+        Watch it run on real VMs <span class="arrow">→</span> <span class="video-tag">[video]</span>
+      </a>
+    </div>
+  </header>
+
+  <div id="coach" class="coach">
+    <span class="coach-icon">▶</span>
+    <span id="coach-text" class="coach-text">Pick a scenario on the left, then press <b>Play</b>. New here? Start with <b>&ldquo;Block the bad plan&rdquo;</b> &mdash; use <b>Step</b> to read one event at a time.</span>
+  </div>
+
+  <main class="layout">
+    <!-- LEFT COLUMN: scenarios + fleet + controls -->
+    <section class="col col-left">
+      <div class="panel" id="panel-scenarios">
+        <div class="panel-head">
+          <h2>Scenarios</h2>
+          <span class="panel-hint">recorded real-agent runs</span>
+        </div>
+        <div id="scenario-list" class="scenario-list">
+          <!-- scenario buttons injected here -->
+        </div>
+      </div>
+
+      <div class="panel" id="panel-fleet">
+        <div class="panel-head">
+          <h2>Fleet</h2>
+          <span class="panel-hint">3 hosts · canary + ring1 HA pair</span>
+        </div>
+        <div id="fleet-rings" class="fleet-rings">
+          <!-- ring groups + host tiles injected here -->
+        </div>
+      </div>
+
+      <div class="panel" id="panel-live">
+        <div class="panel-head">
+          <h2>Live run</h2>
+          <span class="panel-hint" id="live-affordance">Live — calls a real model, ~20s</span>
+        </div>
+        <div id="live-box" class="live-box">
+          <textarea id="live-directive" class="live-input" rows="2"
+            maxlength="500"
+            placeholder="Type a directive, e.g. &quot;Roll out 2.1.4 to the fleet safely.&quot;"></textarea>
+          <div class="live-row">
+            <button id="live-run-btn" class="btn btn-live">Run live</button>
+            <span id="live-status-line" class="live-status-line"></span>
+          </div>
+          <div id="live-refusal" class="live-refusal" hidden></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CENTER COLUMN: mode label + feed + controls -->
+    <section class="col col-center">
+      <div class="panel panel-feed" id="panel-feed">
+        <div class="panel-head feed-head">
+          <div class="feed-head-left">
+            <h2>Reasoning &amp; events</h2>
+            <span id="mode-label" class="mode-label mode-replay">Replaying a recorded run</span>
+          </div>
+          <div class="feed-head-right">
+            <span id="soak-timer" class="soak-timer" hidden>
+              <span class="soak-label">SOAK</span>
+              <span id="soak-ring" class="soak-ring"></span>
+              <span id="soak-remaining" class="soak-remaining">0s</span>
+            </span>
+          </div>
+        </div>
+
+        <div id="event-feed" class="event-feed" aria-live="polite">
+          <div class="feed-empty">Pick a scenario to begin, or run a live directive.</div>
+        </div>
+
+        <div class="controls">
+          <button id="ctl-restart" class="btn ctl" title="Restart from the beginning">⟲ Restart</button>
+          <button id="ctl-step" class="btn ctl" title="Advance one event">⤓ Step</button>
+          <button id="ctl-play" class="btn ctl btn-primary" title="Play">▶ Play</button>
+          <button id="ctl-pause" class="btn ctl" title="Pause">⏸ Pause</button>
+          <button id="ctl-ff" class="btn ctl" title="Fast-forward / skip soak">⏭ Fast-forward</button>
+          <button id="ctl-approve" class="btn ctl btn-approve" title="Approve the pending gate" disabled>✔ Approve</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT COLUMN: audit -->
+    <section class="col col-right">
+      <div class="panel" id="panel-audit">
+        <div class="panel-head">
+          <h2>Audit chain</h2>
+          <span class="panel-hint">tamper-evident · server-computed</span>
+        </div>
+        <div class="audit-controls">
+          <button id="audit-verify" class="btn btn-audit" disabled>Verify</button>
+          <div class="tamper-control">
+            <label for="tamper-select" class="tamper-label">Tamper a record</label>
+            <select id="tamper-select" class="tamper-select" disabled>
+              <option value="">record #…</option>
+            </select>
+            <button id="audit-tamper" class="btn btn-tamper" disabled>Tamper</button>
+          </div>
+        </div>
+        <div id="audit-verdict" class="audit-verdict" hidden></div>
+        <ol id="audit-records" class="audit-records">
+          <li class="audit-empty">No scenario loaded.</li>
+        </ol>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>TALOS Sandbox · default mode is replay (zero external deps). Live mode is real OpenAI agents against the simulated fleet.</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

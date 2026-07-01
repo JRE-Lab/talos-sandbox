@@ -1,0 +1,58 @@
+# TALOS Sandbox — one stack: the FastAPI app behind Caddy (auto-HTTPS).
+#
+# The replay path has ZERO external dependencies, so this stack serves a fully
+# working demo even with no secrets set and no outbound network — live mode
+# simply stays disabled (OPENAI_API_KEY unset → /api/live/status enabled:false).
+#
+#   docker compose up -d --build
+#
+# Caddy terminates TLS for ${TALOS_DOMAIN} and reverse-proxies to app:8000.
+
+services:
+  app:
+    build: .
+    # All runtime config (caps, toggles, OPENAI_API_KEY) comes from .env.
+    # The app reads env directly; no secret is baked into the image.
+    # `.env` is optional: with no file present the replay sandbox still serves
+    # fully (live mode stays disabled), so a bare `docker compose up` just works.
+    env_file:
+      - path: .env
+        required: false
+    expose:
+      - "8000"
+    healthcheck:
+      # Plain-Python check so we don't depend on curl being in the slim image.
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz', timeout=3).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - talos
+
+  caddy:
+    image: caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Pass the domain through so the Caddyfile's {$TALOS_DOMAIN} resolves.
+      - TALOS_DOMAIN=${TALOS_DOMAIN:-talos.example.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+    restart: unless-stopped
+    networks:
+      - talos
+
+networks:
+  talos:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

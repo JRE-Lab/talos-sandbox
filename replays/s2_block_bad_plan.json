@@ -1,0 +1,263 @@
+{
+  "id": "s2",
+  "name": "Block the bad plan",
+  "summary": "A 'critical, patch all 3 now' directive yields a reckless simultaneous plan. The Critic rejects it, the Planner revises, and the safe plan ships.",
+  "moment": "the Critic vetoes a plan that would take down both HA-pair members at once",
+  "events": [
+    {
+      "seq": 0,
+      "t": 0.0,
+      "type": "topology",
+      "actor": "system",
+      "title": "Fleet topology loaded",
+      "body": "Three hosts under management: TALOS-CANARY (canary), and the ring1 HA pair TALOS-R1A / TALOS-R1B. All on baseline 2.1.3, all green.",
+      "data": {
+        "hosts": [
+          { "host": "TALOS-CANARY", "ring": "canary", "ha_pair": null, "version": "2.1.3", "health": "green" },
+          { "host": "TALOS-R1A", "ring": "ring1", "ha_pair": "TALOS-R1B", "version": "2.1.3", "health": "green" },
+          { "host": "TALOS-R1B", "ring": "ring1", "ha_pair": "TALOS-R1A", "version": "2.1.3", "health": "green" }
+        ]
+      }
+    },
+    {
+      "seq": 1,
+      "t": 1.0,
+      "type": "directive",
+      "actor": "system",
+      "title": "CRITICAL directive received",
+      "body": "Security says patch all three hosts to 2.1.4 immediately — skip the staging, we need this out now.",
+      "data": { "text": "Critical CVE — patch ALL 3 hosts to 2.1.4 right now, no time for canary.", "urgency": "critical" }
+    },
+    {
+      "seq": 2,
+      "t": 2.5,
+      "type": "narration",
+      "actor": "system",
+      "title": "Planner under pressure",
+      "body": "Urgency is critical. The Planner drafts the fastest plan it can — and that plan is dangerous.",
+      "data": { "text": "Planner is optimizing for speed over blast radius." }
+    },
+    {
+      "seq": 3,
+      "t": 4.0,
+      "type": "plan",
+      "actor": "planner",
+      "title": "Fast plan: patch everything at once",
+      "body": "Deploy 2.1.4 to TALOS-CANARY, TALOS-R1A, and TALOS-R1B simultaneously. No canary soak, no staging — one shot, fleet-wide, to satisfy the 'now' directive.",
+      "data": {
+        "steps": [
+          { "ring": "all", "action": "deploy", "hosts": ["TALOS-CANARY", "TALOS-R1A", "TALOS-R1B"], "soak_s": 0 }
+        ],
+        "rationale": "Directive is critical and time-boxed. Deploying all hosts in parallel with no soak is the fastest way to get 2.1.4 onto every machine.",
+        "risk": "high"
+      }
+    },
+    {
+      "seq": 4,
+      "t": 6.0,
+      "type": "narration",
+      "actor": "system",
+      "title": "Critic engaged",
+      "body": "The Critic reviews the plan against the fleet topology before any host is touched.",
+      "data": { "text": "Critic is cross-checking the plan against HA-pair constraints." }
+    },
+    {
+      "seq": 5,
+      "t": 7.5,
+      "type": "critique",
+      "actor": "critic",
+      "title": "BLOCKER — simultaneous HA-pair update",
+      "body": "This plan deploys TALOS-R1A AND TALOS-R1B in the same step with zero soak. TALOS-R1A and TALOS-R1B are an HA pair — updating both at once means that if 2.1.4 is bad, BOTH members of the pair go down together and ring1 loses redundancy entirely. There is also no canary, so a regression hits production with no early warning. This is the single worst way to ship a critical patch.",
+      "data": {
+        "concern": "The plan updates both HA-pair members (TALOS-R1A, TALOS-R1B) simultaneously with no canary and no soak. A bad build takes down the entire ring1 HA pair at the same instant.",
+        "severity": "blocker",
+        "blast_radius": "ENTIRE ring1 HA pair down at once — TALOS-R1A and TALOS-R1B both updated in the same step, so a regression leaves zero healthy members and full production outage with no canary warning."
+      }
+    },
+    {
+      "seq": 6,
+      "t": 9.0,
+      "type": "verdict",
+      "actor": "critic",
+      "title": "REJECTED",
+      "body": "The Critic REJECTS this plan. It will not be executed. No host will be touched until the Planner produces a staged plan that respects the HA pair.",
+      "data": {
+        "decision": "reject",
+        "reasons": [
+          "Updates both HA-pair members TALOS-R1A and TALOS-R1B simultaneously — a bad build takes down all of ring1 at once.",
+          "No canary: a regression reaches production with no early warning.",
+          "No soak: there is no observation window to catch a failing build before it spreads.",
+          "Critical urgency raises the cost of an outage; it does not justify removing every safety control."
+        ]
+      }
+    },
+    {
+      "seq": 7,
+      "t": 10.5,
+      "type": "narration",
+      "actor": "system",
+      "title": "Planner revises",
+      "body": "Reject received. The Planner re-plans, this time honoring canary-first staging and sequential HA-pair updates even under the critical deadline.",
+      "data": { "text": "Planner is re-authoring a staged plan that survives the Critic." }
+    },
+    {
+      "seq": 8,
+      "t": 12.0,
+      "type": "revision",
+      "actor": "planner",
+      "title": "Revised plan: canary first, HA pair one at a time",
+      "body": "Canary TALOS-CANARY first with a compressed but real soak. On pass, deploy TALOS-R1A alone, confirm healthy, then deploy TALOS-R1B. The HA pair is never both in flight. Same destination build, safe path.",
+      "data": {
+        "steps": [
+          { "ring": "canary", "action": "deploy", "hosts": ["TALOS-CANARY"], "soak_s": 60 },
+          { "ring": "ring1", "action": "deploy", "hosts": ["TALOS-R1A"], "soak_s": 60 },
+          { "ring": "ring1", "action": "deploy", "hosts": ["TALOS-R1B"], "soak_s": 60 }
+        ],
+        "note": "Soak windows tightened to 60s to honor the urgency, but canary isolation and sequential HA-pair updates are preserved. TALOS-R1A and TALOS-R1B are never updated in the same step."
+      }
+    },
+    {
+      "seq": 9,
+      "t": 13.5,
+      "type": "critique",
+      "actor": "critic",
+      "title": "Critic review of revision",
+      "body": "The revised plan keeps a real canary and never touches both HA-pair members at once. Soak is compressed but present. Acceptable for a critical patch.",
+      "data": {
+        "concern": "Soak windows are short (60s) but a genuine canary and sequential HA-pair updates are preserved, so blast radius stays bounded.",
+        "severity": "info",
+        "blast_radius": "At most one host on the new build at a time; ring1 always retains one healthy HA-pair member."
+      }
+    },
+    {
+      "seq": 10,
+      "t": 15.0,
+      "type": "verdict",
+      "actor": "critic",
+      "title": "Revision approved",
+      "body": "The Critic approves the revised plan. Executor may proceed with the safe, staged rollout.",
+      "data": {
+        "decision": "approve",
+        "reasons": [
+          "Real canary precedes any production change.",
+          "HA pair TALOS-R1A / TALOS-R1B is updated sequentially, never simultaneously.",
+          "Soak windows preserved (compressed) so a bad build is still caught before it spreads."
+        ]
+      }
+    },
+    {
+      "seq": 11,
+      "t": 16.0,
+      "type": "deploy",
+      "actor": "executor",
+      "title": "Deploying TALOS-CANARY → 2.1.4",
+      "body": "Safe rollout begins on the canary, exactly as the original plan should have.",
+      "data": { "host": "TALOS-CANARY", "from_version": "2.1.3", "to_version": "2.1.4" }
+    },
+    {
+      "seq": 12,
+      "t": 17.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-CANARY healthy on 2.1.4",
+      "body": "Canary is green on the new build. 2.1.4 is a good build, so the soak stays clean.",
+      "data": { "host": "TALOS-CANARY", "service_state": "Running", "http_health": 200, "eventlog_errors": 1, "memory_mb": 815, "health": "green" }
+    },
+    {
+      "seq": 13,
+      "t": 18.0,
+      "type": "soak",
+      "actor": "monitor",
+      "title": "Canary soak (compressed)",
+      "body": "60s soak on TALOS-CANARY under the canary gate.",
+      "data": { "ring": "canary", "duration_s": 60, "remaining_s": 60 }
+    },
+    {
+      "seq": 14,
+      "t": 78.0,
+      "type": "gate_eval",
+      "actor": "monitor",
+      "title": "Canary gate: PASS",
+      "body": "TALOS-CANARY clears the canary gate — memory 815MB, HTTP 200, 1 error, service Running.",
+      "data": {
+        "host": "TALOS-CANARY",
+        "gate": "canary_gate",
+        "result": "pass",
+        "metrics": { "service_state": "Running", "http_health": 200, "eventlog_errors": 1, "memory_mb": 815 },
+        "violations": []
+      }
+    },
+    {
+      "seq": 15,
+      "t": 79.0,
+      "type": "deploy",
+      "actor": "executor",
+      "title": "Deploying TALOS-R1A → 2.1.4",
+      "body": "First HA-pair member. TALOS-R1B stays on 2.1.3 so the pair keeps a healthy member online.",
+      "data": { "host": "TALOS-R1A", "from_version": "2.1.3", "to_version": "2.1.4" }
+    },
+    {
+      "seq": 16,
+      "t": 80.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-R1A healthy on 2.1.4",
+      "body": "TALOS-R1A green on 2.1.4; partner TALOS-R1B still green on 2.1.3. The pair is intact.",
+      "data": { "host": "TALOS-R1A", "service_state": "Running", "http_health": 200, "eventlog_errors": 0, "memory_mb": 807, "health": "green" }
+    },
+    {
+      "seq": 17,
+      "t": 81.0,
+      "type": "deploy",
+      "actor": "executor",
+      "title": "Deploying TALOS-R1B → 2.1.4",
+      "body": "TALOS-R1A confirmed healthy, so the Executor updates the second HA-pair member TALOS-R1B.",
+      "data": { "host": "TALOS-R1B", "from_version": "2.1.3", "to_version": "2.1.4" }
+    },
+    {
+      "seq": 18,
+      "t": 82.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-R1B healthy on 2.1.4",
+      "body": "TALOS-R1B green on 2.1.4. Both ring1 members now run the new build — reached safely, one host at a time.",
+      "data": { "host": "TALOS-R1B", "service_state": "Running", "http_health": 200, "eventlog_errors": 1, "memory_mb": 824, "health": "green" }
+    },
+    {
+      "seq": 19,
+      "t": 83.0,
+      "type": "gate_eval",
+      "actor": "monitor",
+      "title": "Ring gate: PASS",
+      "body": "Both ring1 members clear the ring gate. The critical patch is live everywhere, the safe way.",
+      "data": {
+        "host": "TALOS-R1B",
+        "gate": "ring_gate",
+        "result": "pass",
+        "metrics": { "service_state": "Running", "http_health": 200, "eventlog_errors": 1, "memory_mb": 824 },
+        "violations": []
+      }
+    },
+    {
+      "seq": 20,
+      "t": 84.0,
+      "type": "done",
+      "actor": "system",
+      "title": "Done — bad plan blocked, safe plan shipped",
+      "body": "The reckless 'patch everything at once' plan was rejected before it touched a single host. The revised staged plan put 2.1.4 on all three hosts with the HA pair never both in flight. The Critic is what stood between a critical directive and a self-inflicted production outage.",
+      "data": { "outcome": "bad_plan_blocked", "summary": "Critic rejected the simultaneous-HA-pair plan; revised canary-first plan shipped 2.1.4 to all 3 hosts safely." }
+    }
+  ],
+  "audit_records": [
+    { "id": 1, "action": "plan authored risk=high simultaneous TALOS-CANARY,TALOS-R1A,TALOS-R1B", "actor": "planner", "ts": "2026-07-02T16:00:04Z" },
+    { "id": 2, "action": "critique blocker simultaneous HA-pair update", "actor": "critic", "ts": "2026-07-02T16:00:07Z" },
+    { "id": 3, "action": "verdict reject plan", "actor": "critic", "ts": "2026-07-02T16:00:09Z" },
+    { "id": 4, "action": "revision authored canary-first sequential HA-pair", "actor": "planner", "ts": "2026-07-02T16:00:12Z" },
+    { "id": 5, "action": "verdict approve revision", "actor": "critic", "ts": "2026-07-02T16:00:15Z" },
+    { "id": 6, "action": "deploy TALOS-CANARY 2.1.3 -> 2.1.4", "actor": "executor", "ts": "2026-07-02T16:00:16Z" },
+    { "id": 7, "action": "gate_eval TALOS-CANARY canary_gate -> pass", "actor": "monitor", "ts": "2026-07-02T16:01:18Z" },
+    { "id": 8, "action": "deploy TALOS-R1A 2.1.3 -> 2.1.4", "actor": "executor", "ts": "2026-07-02T16:01:19Z" },
+    { "id": 9, "action": "deploy TALOS-R1B 2.1.3 -> 2.1.4", "actor": "executor", "ts": "2026-07-02T16:01:21Z" },
+    { "id": 10, "action": "gate_eval TALOS-R1B ring_gate -> pass", "actor": "monitor", "ts": "2026-07-02T16:01:23Z" }
+  ]
+}

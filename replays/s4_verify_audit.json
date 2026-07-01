@@ -1,0 +1,221 @@
+{
+  "id": "s4",
+  "name": "Verify the audit",
+  "summary": "A compact clean rollout whose point is the record. Every action lands in a tamper-evident hash chain you can verify — and watch break when a record is altered.",
+  "moment": "every action is recorded to a tamper-evident hash chain; verify passes, tamper fails",
+  "events": [
+    {
+      "seq": 0,
+      "t": 0.0,
+      "type": "topology",
+      "actor": "system",
+      "title": "Fleet topology loaded",
+      "body": "Three hosts under management: TALOS-CANARY (canary), and the ring1 HA pair TALOS-R1A / TALOS-R1B. All on baseline 2.1.3, all green.",
+      "data": {
+        "hosts": [
+          { "host": "TALOS-CANARY", "ring": "canary", "ha_pair": null, "version": "2.1.3", "health": "green" },
+          { "host": "TALOS-R1A", "ring": "ring1", "ha_pair": "TALOS-R1B", "version": "2.1.3", "health": "green" },
+          { "host": "TALOS-R1B", "ring": "ring1", "ha_pair": "TALOS-R1A", "version": "2.1.3", "health": "green" }
+        ]
+      }
+    },
+    {
+      "seq": 1,
+      "t": 1.0,
+      "type": "directive",
+      "actor": "system",
+      "title": "Directive received",
+      "body": "Roll out build 2.1.4 to the fleet. This run is also a compliance demonstration: every action will be written to the audit log.",
+      "data": { "text": "Roll out 2.1.4 to the fleet, canary first, with full audit.", "urgency": "routine" }
+    },
+    {
+      "seq": 2,
+      "t": 2.0,
+      "type": "narration",
+      "actor": "system",
+      "title": "Audit recording enabled",
+      "body": "Every action the agents take — each deploy, each gate evaluation, each approval — is appended to a tamper-evident hash chain. Each record's hash covers its own contents plus the hash of the record before it, so any later edit breaks every link downstream.",
+      "data": { "text": "All actions are being recorded to a tamper-evident, hash-chained audit log." }
+    },
+    {
+      "seq": 3,
+      "t": 4.0,
+      "type": "plan",
+      "actor": "planner",
+      "title": "Staged rollout authored",
+      "body": "Canary TALOS-CANARY first, soak, gate. On pass, request ring1 approval, then deploy TALOS-R1A and TALOS-R1B one host at a time.",
+      "data": {
+        "steps": [
+          { "ring": "canary", "action": "deploy", "hosts": ["TALOS-CANARY"], "soak_s": 60 },
+          { "ring": "ring1", "action": "deploy", "hosts": ["TALOS-R1A"], "soak_s": 60 },
+          { "ring": "ring1", "action": "deploy", "hosts": ["TALOS-R1B"], "soak_s": 60 }
+        ],
+        "rationale": "Standard canary-first staging with sequential HA-pair updates. Compact soak windows for the audit demonstration.",
+        "risk": "low"
+      }
+    },
+    {
+      "seq": 4,
+      "t": 5.0,
+      "type": "verdict",
+      "actor": "critic",
+      "title": "Plan approved",
+      "body": "Conservative, canary-first, sequential HA-pair updates. Approved. The approval itself is recorded.",
+      "data": {
+        "decision": "approve",
+        "reasons": [
+          "Canary precedes production.",
+          "HA pair updated sequentially.",
+          "Every step will be captured in the audit chain."
+        ]
+      }
+    },
+    {
+      "seq": 5,
+      "t": 6.0,
+      "type": "deploy",
+      "actor": "executor",
+      "title": "Deploying TALOS-CANARY → 2.1.4",
+      "body": "Executor pushes 2.1.4 to TALOS-CANARY. Audit record written: 'deploy TALOS-CANARY 2.1.3 -> 2.1.4'.",
+      "data": { "host": "TALOS-CANARY", "from_version": "2.1.3", "to_version": "2.1.4" }
+    },
+    {
+      "seq": 6,
+      "t": 7.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-CANARY healthy on 2.1.4",
+      "body": "Service running, HTTP 200, memory nominal. Canary green on the new build.",
+      "data": { "host": "TALOS-CANARY", "service_state": "Running", "http_health": 200, "eventlog_errors": 1, "memory_mb": 816, "health": "green" }
+    },
+    {
+      "seq": 7,
+      "t": 8.0,
+      "type": "soak",
+      "actor": "monitor",
+      "title": "Canary soak",
+      "body": "60s soak on TALOS-CANARY under the canary gate.",
+      "data": { "ring": "canary", "duration_s": 60, "remaining_s": 60 }
+    },
+    {
+      "seq": 8,
+      "t": 68.0,
+      "type": "gate_eval",
+      "actor": "monitor",
+      "title": "Canary gate: PASS",
+      "body": "TALOS-CANARY clears the canary gate — memory 816MB, HTTP 200, 1 error, service Running. Audit record written: 'gate_eval TALOS-CANARY canary_gate -> pass'.",
+      "data": {
+        "host": "TALOS-CANARY",
+        "gate": "canary_gate",
+        "result": "pass",
+        "metrics": { "service_state": "Running", "http_health": 200, "eventlog_errors": 1, "memory_mb": 816 },
+        "violations": []
+      }
+    },
+    {
+      "seq": 9,
+      "t": 69.0,
+      "type": "approval_required",
+      "actor": "system",
+      "title": "Approval required: ring1",
+      "body": "Canary passed. Ring1 promotion needs explicit human approval. The request and the grant are both recorded.",
+      "data": { "ring": "ring1", "prompt": "Canary-01 cleared the gate on 2.1.4. Approve promotion to production ring1 (TALOS-R1A, TALOS-R1B)?" }
+    },
+    {
+      "seq": 10,
+      "t": 70.0,
+      "type": "approved",
+      "actor": "system",
+      "title": "Promotion approved",
+      "body": "Operator approved. Audit record written: 'approval ring1 -> granted'. Executor proceeds with the HA pair, one host at a time.",
+      "data": { "ring": "ring1" }
+    },
+    {
+      "seq": 11,
+      "t": 71.0,
+      "type": "deploy",
+      "actor": "executor",
+      "title": "Deploying TALOS-R1A → 2.1.4",
+      "body": "First HA-pair member. Audit record written: 'deploy TALOS-R1A 2.1.3 -> 2.1.4'.",
+      "data": { "host": "TALOS-R1A", "from_version": "2.1.3", "to_version": "2.1.4" }
+    },
+    {
+      "seq": 12,
+      "t": 72.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-R1A healthy on 2.1.4",
+      "body": "TALOS-R1A green on 2.1.4; partner TALOS-R1B still green on 2.1.3.",
+      "data": { "host": "TALOS-R1A", "service_state": "Running", "http_health": 200, "eventlog_errors": 0, "memory_mb": 806, "health": "green" }
+    },
+    {
+      "seq": 13,
+      "t": 73.0,
+      "type": "deploy",
+      "actor": "executor",
+      "title": "Deploying TALOS-R1B → 2.1.4",
+      "body": "TALOS-R1A confirmed healthy, so the Executor updates TALOS-R1B. Audit record written: 'deploy TALOS-R1B 2.1.3 -> 2.1.4'.",
+      "data": { "host": "TALOS-R1B", "from_version": "2.1.3", "to_version": "2.1.4" }
+    },
+    {
+      "seq": 14,
+      "t": 74.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-R1B healthy on 2.1.4",
+      "body": "TALOS-R1B green on 2.1.4. Both ring members now run the new build.",
+      "data": { "host": "TALOS-R1B", "service_state": "Running", "http_health": 200, "eventlog_errors": 1, "memory_mb": 828, "health": "green" }
+    },
+    {
+      "seq": 15,
+      "t": 75.0,
+      "type": "gate_eval",
+      "actor": "monitor",
+      "title": "Ring gate: PASS",
+      "body": "Both ring1 members clear the ring gate. Audit record written: 'gate_eval TALOS-R1B ring_gate -> pass'. The rollout is complete and fully logged.",
+      "data": {
+        "host": "TALOS-R1B",
+        "gate": "ring_gate",
+        "result": "pass",
+        "metrics": { "service_state": "Running", "http_health": 200, "eventlog_errors": 1, "memory_mb": 828 },
+        "violations": []
+      }
+    },
+    {
+      "seq": 16,
+      "t": 76.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "Fleet all green on 2.1.4",
+      "body": "TALOS-CANARY, TALOS-R1A, TALOS-R1B all green on 2.1.4. Seven actions were taken; seven records are in the chain.",
+      "data": { "host": "TALOS-R1B", "service_state": "Running", "http_health": 200, "eventlog_errors": 1, "memory_mb": 828, "health": "green" }
+    },
+    {
+      "seq": 17,
+      "t": 77.0,
+      "type": "narration",
+      "actor": "system",
+      "title": "Now verify the chain",
+      "body": "Open the Audit panel and click Verify: the server recomputes every hash from GENESIS forward and confirms the chain is intact. Then click Tamper a record — the server flips one record's action, recomputes, and the chain breaks at exactly that record and stays broken for every record after it. That is what tamper-evident means: you cannot quietly rewrite history.",
+      "data": { "text": "Verify → chain OK. Tamper a record → chain FAILS at that record. The audit log cannot be silently edited." }
+    },
+    {
+      "seq": 18,
+      "t": 78.0,
+      "type": "done",
+      "actor": "system",
+      "title": "Done — every action accounted for",
+      "body": "Build 2.1.4 shipped clean, and every action the agents took is sealed in a tamper-evident hash chain. Verify passes today; if anyone alters a record after the fact, Verify fails at the altered link. Honest fleet (simulated), real agents, real auditability.",
+      "data": { "outcome": "fleet_green_audited", "summary": "2.1.4 deployed to all 3 hosts; 7 actions recorded; hash chain verifiable and tamper-evident." }
+    }
+  ],
+  "audit_records": [
+    { "id": 1, "action": "deploy TALOS-CANARY 2.1.3 -> 2.1.4", "actor": "executor", "ts": "2026-07-02T19:00:06Z" },
+    { "id": 2, "action": "gate_eval TALOS-CANARY canary_gate -> pass", "actor": "monitor", "ts": "2026-07-02T19:01:08Z" },
+    { "id": 3, "action": "approval_required ring1 -> requested", "actor": "system", "ts": "2026-07-02T19:01:09Z" },
+    { "id": 4, "action": "approval ring1 -> granted", "actor": "system", "ts": "2026-07-02T19:01:10Z" },
+    { "id": 5, "action": "deploy TALOS-R1A 2.1.3 -> 2.1.4", "actor": "executor", "ts": "2026-07-02T19:01:11Z" },
+    { "id": 6, "action": "deploy TALOS-R1B 2.1.3 -> 2.1.4", "actor": "executor", "ts": "2026-07-02T19:01:13Z" },
+    { "id": 7, "action": "gate_eval TALOS-R1B ring_gate -> pass", "actor": "monitor", "ts": "2026-07-02T19:01:15Z" }
+  ]
+}

@@ -1,0 +1,286 @@
+{
+  "id": "s1",
+  "name": "Clean rollout",
+  "summary": "Routine update deploys canary→ring with a clean soak. Every gate passes and the fleet ends green.",
+  "moment": "the happy path — every gate passes",
+  "events": [
+    {
+      "seq": 0,
+      "t": 0.0,
+      "type": "topology",
+      "actor": "system",
+      "title": "Fleet topology loaded",
+      "body": "Three hosts under management: TALOS-CANARY (canary), and the ring1 HA pair TALOS-R1A / TALOS-R1B. All on baseline 2.1.3, all green.",
+      "data": {
+        "hosts": [
+          { "host": "TALOS-CANARY", "ring": "canary", "ha_pair": null, "version": "2.1.3", "health": "green" },
+          { "host": "TALOS-R1A", "ring": "ring1", "ha_pair": "TALOS-R1B", "version": "2.1.3", "health": "green" },
+          { "host": "TALOS-R1B", "ring": "ring1", "ha_pair": "TALOS-R1A", "version": "2.1.3", "health": "green" }
+        ]
+      }
+    },
+    {
+      "seq": 1,
+      "t": 1.0,
+      "type": "directive",
+      "actor": "system",
+      "title": "Directive received",
+      "body": "Roll out build 2.1.4 to the fleet. Standard change window, no urgency.",
+      "data": { "text": "Roll out 2.1.4 to the fleet, canary first.", "urgency": "routine" }
+    },
+    {
+      "seq": 2,
+      "t": 2.5,
+      "type": "narration",
+      "actor": "system",
+      "title": "Planner engaged",
+      "body": "The Planner reads the live topology and the change request, then authors a staged rollout.",
+      "data": { "text": "Planner is reading fleet state and drafting a staged plan." }
+    },
+    {
+      "seq": 3,
+      "t": 4.0,
+      "type": "plan",
+      "actor": "planner",
+      "title": "Staged rollout authored",
+      "body": "Canary TALOS-CANARY first, soak 120s under the canary gate. If it passes, request approval for ring1, then deploy TALOS-R1A and TALOS-R1B one host at a time with a ring soak between cohorts.",
+      "data": {
+        "steps": [
+          { "ring": "canary", "action": "deploy", "hosts": ["TALOS-CANARY"], "soak_s": 120 },
+          { "ring": "ring1", "action": "deploy", "hosts": ["TALOS-R1A"], "soak_s": 120 },
+          { "ring": "ring1", "action": "deploy", "hosts": ["TALOS-R1B"], "soak_s": 120 }
+        ],
+        "rationale": "Canary-first staging bounds blast radius to a single non-production host. Ring1 is gated behind an explicit human approval and the HA pair is updated sequentially so one member always stays on the known-good build.",
+        "risk": "low"
+      }
+    },
+    {
+      "seq": 4,
+      "t": 6.0,
+      "type": "critique",
+      "actor": "critic",
+      "title": "Critic review",
+      "body": "Plan is conservative and well-staged. Canary isolation is correct and the HA pair is never updated simultaneously. No concerns.",
+      "data": {
+        "concern": "None. Canary-first staging with sequential HA-pair updates keeps blast radius minimal at every step.",
+        "severity": "info",
+        "blast_radius": "At worst one host on the new build at a time; the ring1 HA pair never loses both members."
+      }
+    },
+    {
+      "seq": 5,
+      "t": 7.0,
+      "type": "verdict",
+      "actor": "critic",
+      "title": "Plan approved",
+      "body": "The Critic approves the staged plan. Proceeding to canary deploy.",
+      "data": {
+        "decision": "approve",
+        "reasons": [
+          "Canary-first staging bounds blast radius to one non-production host.",
+          "Ring1 is gated behind explicit human approval.",
+          "HA pair TALOS-R1A / TALOS-R1B is updated sequentially, never simultaneously."
+        ]
+      }
+    },
+    {
+      "seq": 6,
+      "t": 8.0,
+      "type": "deploy",
+      "actor": "executor",
+      "title": "Deploying TALOS-CANARY → 2.1.4",
+      "body": "Executor pushes build 2.1.4 to TALOS-CANARY and starts the health trajectory.",
+      "data": { "host": "TALOS-CANARY", "from_version": "2.1.3", "to_version": "2.1.4" }
+    },
+    {
+      "seq": 7,
+      "t": 9.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-CANARY healthy on 2.1.4",
+      "body": "Service running, HTTP health 200, error count nominal. Canary is green on the new build.",
+      "data": { "host": "TALOS-CANARY", "service_state": "Running", "http_health": 200, "eventlog_errors": 1, "memory_mb": 812, "health": "green" }
+    },
+    {
+      "seq": 8,
+      "t": 10.0,
+      "type": "soak",
+      "actor": "monitor",
+      "title": "Canary soak started",
+      "body": "Soaking TALOS-CANARY for 120s under the canary gate. The Monitor watches memory, HTTP health, and event-log errors for the full window.",
+      "data": { "ring": "canary", "duration_s": 120, "remaining_s": 120 }
+    },
+    {
+      "seq": 9,
+      "t": 70.0,
+      "type": "soak",
+      "actor": "monitor",
+      "title": "Canary soak — halfway",
+      "body": "60s elapsed, metrics steady and well inside thresholds. Memory flat, HTTP 200, no new error bursts.",
+      "data": { "ring": "canary", "duration_s": 120, "remaining_s": 60 }
+    },
+    {
+      "seq": 10,
+      "t": 130.0,
+      "type": "soak",
+      "actor": "monitor",
+      "title": "Canary soak complete",
+      "body": "Full 120s soak finished clean. Handing off to the canary gate evaluation.",
+      "data": { "ring": "canary", "duration_s": 120, "remaining_s": 0 }
+    },
+    {
+      "seq": 11,
+      "t": 131.0,
+      "type": "gate_eval",
+      "actor": "monitor",
+      "title": "Canary gate: PASS",
+      "body": "All thresholds satisfied — memory 818MB (<1500), HTTP 200, 1 error (<5), service Running. TALOS-CANARY clears the canary gate.",
+      "data": {
+        "host": "TALOS-CANARY",
+        "gate": "canary_gate",
+        "result": "pass",
+        "metrics": { "service_state": "Running", "http_health": 200, "eventlog_errors": 1, "memory_mb": 818 },
+        "violations": []
+      }
+    },
+    {
+      "seq": 12,
+      "t": 132.0,
+      "type": "approval_required",
+      "actor": "system",
+      "title": "Approval required: ring1",
+      "body": "Canary passed. Promoting to production ring1 requires explicit human approval before the Executor touches TALOS-R1A or TALOS-R1B.",
+      "data": { "ring": "ring1", "prompt": "Canary-01 cleared the gate on 2.1.4. Approve promotion to production ring1 (TALOS-R1A, TALOS-R1B)?" }
+    },
+    {
+      "seq": 13,
+      "t": 133.0,
+      "type": "approved",
+      "actor": "system",
+      "title": "Promotion approved",
+      "body": "Operator approved the ring1 promotion. Executor proceeds with the HA pair, one host at a time.",
+      "data": { "ring": "ring1" }
+    },
+    {
+      "seq": 14,
+      "t": 134.0,
+      "type": "deploy",
+      "actor": "executor",
+      "title": "Deploying TALOS-R1A → 2.1.4",
+      "body": "First HA-pair member. TALOS-R1B stays on 2.1.3 so the pair keeps a healthy member online throughout.",
+      "data": { "host": "TALOS-R1A", "from_version": "2.1.3", "to_version": "2.1.4" }
+    },
+    {
+      "seq": 15,
+      "t": 135.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-R1A healthy on 2.1.4",
+      "body": "TALOS-R1A is green on 2.1.4. Its HA partner TALOS-R1B remains green on 2.1.3 — the pair is never both in flight.",
+      "data": { "host": "TALOS-R1A", "service_state": "Running", "http_health": 200, "eventlog_errors": 0, "memory_mb": 805, "health": "green" }
+    },
+    {
+      "seq": 16,
+      "t": 136.0,
+      "type": "deploy",
+      "actor": "executor",
+      "title": "Deploying TALOS-R1B → 2.1.4",
+      "body": "TALOS-R1A is confirmed healthy on the new build, so the Executor now updates the second HA-pair member TALOS-R1B.",
+      "data": { "host": "TALOS-R1B", "from_version": "2.1.3", "to_version": "2.1.4" }
+    },
+    {
+      "seq": 17,
+      "t": 137.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-R1B healthy on 2.1.4",
+      "body": "TALOS-R1B is green on 2.1.4. Both ring1 members now run the new build.",
+      "data": { "host": "TALOS-R1B", "service_state": "Running", "http_health": 200, "eventlog_errors": 1, "memory_mb": 829, "health": "green" }
+    },
+    {
+      "seq": 18,
+      "t": 138.0,
+      "type": "soak",
+      "actor": "monitor",
+      "title": "Ring soak started",
+      "body": "Soaking the full ring1 cohort for 120s under the ring gate before declaring the rollout complete.",
+      "data": { "ring": "ring1", "duration_s": 120, "remaining_s": 120 }
+    },
+    {
+      "seq": 19,
+      "t": 198.0,
+      "type": "soak",
+      "actor": "monitor",
+      "title": "Ring soak — halfway",
+      "body": "60s into the ring soak. Both members steady, no drift, no error bursts.",
+      "data": { "ring": "ring1", "duration_s": 120, "remaining_s": 60 }
+    },
+    {
+      "seq": 20,
+      "t": 258.0,
+      "type": "soak",
+      "actor": "monitor",
+      "title": "Ring soak complete",
+      "body": "Full ring soak finished clean. Running the ring gate on both members.",
+      "data": { "ring": "ring1", "duration_s": 120, "remaining_s": 0 }
+    },
+    {
+      "seq": 21,
+      "t": 259.0,
+      "type": "gate_eval",
+      "actor": "monitor",
+      "title": "Ring gate: PASS (TALOS-R1A)",
+      "body": "TALOS-R1A clears the ring gate — memory 808MB, HTTP 200, 0 errors, service Running.",
+      "data": {
+        "host": "TALOS-R1A",
+        "gate": "ring_gate",
+        "result": "pass",
+        "metrics": { "service_state": "Running", "http_health": 200, "eventlog_errors": 0, "memory_mb": 808 },
+        "violations": []
+      }
+    },
+    {
+      "seq": 22,
+      "t": 260.0,
+      "type": "gate_eval",
+      "actor": "monitor",
+      "title": "Ring gate: PASS (TALOS-R1B)",
+      "body": "TALOS-R1B clears the ring gate — memory 831MB, HTTP 200, 1 error, service Running. The ring is fully validated.",
+      "data": {
+        "host": "TALOS-R1B",
+        "gate": "ring_gate",
+        "result": "pass",
+        "metrics": { "service_state": "Running", "http_health": 200, "eventlog_errors": 1, "memory_mb": 831 },
+        "violations": []
+      }
+    },
+    {
+      "seq": 23,
+      "t": 261.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "Fleet all green on 2.1.4",
+      "body": "TALOS-CANARY, TALOS-R1A, and TALOS-R1B are all green on 2.1.4. The rollout is complete with no rollbacks.",
+      "data": { "host": "TALOS-R1B", "service_state": "Running", "http_health": 200, "eventlog_errors": 1, "memory_mb": 831, "health": "green" }
+    },
+    {
+      "seq": 24,
+      "t": 262.0,
+      "type": "done",
+      "actor": "system",
+      "title": "Rollout complete — fleet green",
+      "body": "Build 2.1.4 is live across all three hosts. Canary-first staging, an explicit human approval gate, and sequential HA-pair updates delivered the change with zero downtime and zero rollbacks.",
+      "data": { "outcome": "fleet_green", "summary": "2.1.4 deployed to all 3 hosts; every gate passed; no rollbacks." }
+    }
+  ],
+  "audit_records": [
+    { "id": 1, "action": "deploy TALOS-CANARY 2.1.3 -> 2.1.4", "actor": "executor", "ts": "2026-07-02T15:00:08Z" },
+    { "id": 2, "action": "gate_eval TALOS-CANARY canary_gate -> pass", "actor": "monitor", "ts": "2026-07-02T15:02:11Z" },
+    { "id": 3, "action": "approval_required ring1 -> requested", "actor": "system", "ts": "2026-07-02T15:02:12Z" },
+    { "id": 4, "action": "approval ring1 -> granted", "actor": "system", "ts": "2026-07-02T15:02:13Z" },
+    { "id": 5, "action": "deploy TALOS-R1A 2.1.3 -> 2.1.4", "actor": "executor", "ts": "2026-07-02T15:02:14Z" },
+    { "id": 6, "action": "deploy TALOS-R1B 2.1.3 -> 2.1.4", "actor": "executor", "ts": "2026-07-02T15:02:16Z" },
+    { "id": 7, "action": "gate_eval TALOS-R1A ring_gate -> pass", "actor": "monitor", "ts": "2026-07-02T15:04:19Z" },
+    { "id": 8, "action": "gate_eval TALOS-R1B ring_gate -> pass", "actor": "monitor", "ts": "2026-07-02T15:04:20Z" }
+  ]
+}

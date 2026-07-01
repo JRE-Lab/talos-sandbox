@@ -1,0 +1,28 @@
+# TALOS Sandbox — reverse proxy with automatic HTTPS.
+#
+# Caddy obtains and renews a TLS cert for {$TALOS_DOMAIN} automatically (ACME),
+# and proxies all traffic to the FastAPI app on the internal Docker network.
+# Override the domain via the TALOS_DOMAIN env var (see .env.example, §11).
+
+{$TALOS_DOMAIN:talos.example.com} {
+	# Forward everything to the app container. SSE works through Caddy's
+	# reverse proxy without extra config (it streams flush-as-you-go).
+	reverse_proxy app:8000
+
+	# Structured access logging to stdout so `docker compose logs caddy`
+	# shows requests; keep it at INFO to stay readable during a demo.
+	log {
+		output stdout
+		format console
+		level INFO
+	}
+
+	# Light hardening headers; harmless for an internal demo prop.
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+
+	encode gzip zstd
+}

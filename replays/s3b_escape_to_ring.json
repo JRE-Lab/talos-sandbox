@@ -1,0 +1,333 @@
+{
+  "id": "s3b",
+  "name": "Escape to ring",
+  "summary": "2.1.5 passes the canary clean but the regression was armed only on ring1. It surfaces after promotion, triggering a fleet-scale rollback of the HA pair.",
+  "moment": "the regression slips past the canary and is caught — and rolled back fleet-wide — on the ring",
+  "events": [
+    {
+      "seq": 0,
+      "t": 0.0,
+      "type": "topology",
+      "actor": "system",
+      "title": "Fleet topology loaded",
+      "body": "Three hosts under management: TALOS-CANARY (canary), and the ring1 HA pair TALOS-R1A / TALOS-R1B. All on baseline 2.1.3, all green.",
+      "data": {
+        "hosts": [
+          { "host": "TALOS-CANARY", "ring": "canary", "ha_pair": null, "version": "2.1.3", "health": "green" },
+          { "host": "TALOS-R1A", "ring": "ring1", "ha_pair": "TALOS-R1B", "version": "2.1.3", "health": "green" },
+          { "host": "TALOS-R1B", "ring": "ring1", "ha_pair": "TALOS-R1A", "version": "2.1.3", "health": "green" }
+        ]
+      }
+    },
+    {
+      "seq": 1,
+      "t": 1.0,
+      "type": "directive",
+      "actor": "system",
+      "title": "Directive received",
+      "body": "Deploy hotfix build 2.1.5 to the fleet, canary first.",
+      "data": { "text": "Deploy 2.1.5 to the fleet, canary first.", "urgency": "urgent" }
+    },
+    {
+      "seq": 2,
+      "t": 3.0,
+      "type": "plan",
+      "actor": "planner",
+      "title": "Standard staged plan",
+      "body": "Canary TALOS-CANARY first, soak 120s. On pass, request approval for ring1 and update TALOS-R1A then TALOS-R1B one host at a time.",
+      "data": {
+        "steps": [
+          { "ring": "canary", "action": "deploy", "hosts": ["TALOS-CANARY"], "soak_s": 120 },
+          { "ring": "ring1", "action": "deploy", "hosts": ["TALOS-R1A"], "soak_s": 120 },
+          { "ring": "ring1", "action": "deploy", "hosts": ["TALOS-R1B"], "soak_s": 120 }
+        ],
+        "rationale": "Canary-first staging with an approval gate before production and sequential HA-pair updates.",
+        "risk": "low"
+      }
+    },
+    {
+      "seq": 3,
+      "t": 5.0,
+      "type": "verdict",
+      "actor": "critic",
+      "title": "Plan approved",
+      "body": "Canary-first, approval-gated, sequential HA-pair updates. Approved.",
+      "data": {
+        "decision": "approve",
+        "reasons": [
+          "Canary precedes production.",
+          "Ring1 gated behind human approval.",
+          "HA pair updated sequentially, never both at once."
+        ]
+      }
+    },
+    {
+      "seq": 4,
+      "t": 6.0,
+      "type": "deploy",
+      "actor": "executor",
+      "title": "Deploying TALOS-CANARY → 2.1.5",
+      "body": "Executor pushes 2.1.5 to TALOS-CANARY. In this variant the regression is armed only on ring1 hosts, so the canary will look healthy — a more dangerous failure mode.",
+      "data": { "host": "TALOS-CANARY", "from_version": "2.1.3", "to_version": "2.1.5" }
+    },
+    {
+      "seq": 5,
+      "t": 7.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-CANARY green on 2.1.5",
+      "body": "Service running, HTTP 200, memory nominal. The canary stays healthy throughout — the bug does not express on this host.",
+      "data": { "host": "TALOS-CANARY", "service_state": "Running", "http_health": 200, "eventlog_errors": 1, "memory_mb": 820, "health": "green" }
+    },
+    {
+      "seq": 6,
+      "t": 8.0,
+      "type": "soak",
+      "actor": "monitor",
+      "title": "Canary soak started",
+      "body": "Soaking TALOS-CANARY for 120s under the canary gate.",
+      "data": { "ring": "canary", "duration_s": 120, "remaining_s": 120 }
+    },
+    {
+      "seq": 7,
+      "t": 68.0,
+      "type": "soak",
+      "actor": "monitor",
+      "title": "Canary soak — halfway, clean",
+      "body": "60s in, TALOS-CANARY is flat and healthy. Memory steady, HTTP 200, no error bursts. The canary gives no warning.",
+      "data": { "ring": "canary", "duration_s": 120, "remaining_s": 60 }
+    },
+    {
+      "seq": 8,
+      "t": 128.0,
+      "type": "soak",
+      "actor": "monitor",
+      "title": "Canary soak complete",
+      "body": "Full 120s soak finished clean. The canary passes — but the regression is lying in wait on ring1.",
+      "data": { "ring": "canary", "duration_s": 120, "remaining_s": 0 }
+    },
+    {
+      "seq": 9,
+      "t": 129.0,
+      "type": "gate_eval",
+      "actor": "monitor",
+      "title": "Canary gate: PASS",
+      "body": "TALOS-CANARY clears the canary gate — memory 822MB, HTTP 200, 1 error, service Running. Nothing here suggests a problem.",
+      "data": {
+        "host": "TALOS-CANARY",
+        "gate": "canary_gate",
+        "result": "pass",
+        "metrics": { "service_state": "Running", "http_health": 200, "eventlog_errors": 1, "memory_mb": 822 },
+        "violations": []
+      }
+    },
+    {
+      "seq": 10,
+      "t": 130.0,
+      "type": "approval_required",
+      "actor": "system",
+      "title": "Approval required: ring1",
+      "body": "Canary passed clean. Promoting 2.1.5 to production ring1 requires explicit human approval.",
+      "data": { "ring": "ring1", "prompt": "Canary-01 cleared the gate on 2.1.5. Approve promotion to production ring1 (TALOS-R1A, TALOS-R1B)?" }
+    },
+    {
+      "seq": 11,
+      "t": 131.0,
+      "type": "approved",
+      "actor": "system",
+      "title": "Promotion approved",
+      "body": "Operator approved promotion based on a clean canary. Executor proceeds with the HA pair, one host at a time.",
+      "data": { "ring": "ring1" }
+    },
+    {
+      "seq": 12,
+      "t": 132.0,
+      "type": "deploy",
+      "actor": "executor",
+      "title": "Deploying TALOS-R1A → 2.1.5",
+      "body": "First HA-pair member. TALOS-R1B stays on 2.1.3 for now. The regression is armed on ring1 — it will start expressing here.",
+      "data": { "host": "TALOS-R1A", "from_version": "2.1.3", "to_version": "2.1.5" }
+    },
+    {
+      "seq": 13,
+      "t": 133.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-R1A green on 2.1.5 (so far)",
+      "body": "TALOS-R1A initially looks fine on 2.1.5. The regression is timer-driven and has not yet armed on this host.",
+      "data": { "host": "TALOS-R1A", "service_state": "Running", "http_health": 200, "eventlog_errors": 1, "memory_mb": 831, "health": "green" }
+    },
+    {
+      "seq": 14,
+      "t": 134.0,
+      "type": "deploy",
+      "actor": "executor",
+      "title": "Deploying TALOS-R1B → 2.1.5",
+      "body": "TALOS-R1A looked healthy on first read, so the Executor proceeds to the second HA-pair member TALOS-R1B. Both ring members are now on 2.1.5.",
+      "data": { "host": "TALOS-R1B", "from_version": "2.1.3", "to_version": "2.1.5" }
+    },
+    {
+      "seq": 15,
+      "t": 135.0,
+      "type": "soak",
+      "actor": "monitor",
+      "title": "Ring soak started",
+      "body": "Soaking the ring1 cohort for 120s under the ring gate. This is the window where the armed regression finally expresses on production.",
+      "data": { "ring": "ring1", "duration_s": 120, "remaining_s": 120 }
+    },
+    {
+      "seq": 16,
+      "t": 160.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-R1A AMBER — memory climbing",
+      "body": "TALOS-R1A memory has climbed to 1410MB and errors are rising. Health flips to amber on the first ring member.",
+      "data": { "host": "TALOS-R1A", "service_state": "Running", "http_health": 200, "eventlog_errors": 4, "memory_mb": 1410, "health": "amber" }
+    },
+    {
+      "seq": 17,
+      "t": 165.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-R1B AMBER — memory climbing",
+      "body": "TALOS-R1B is degrading the same way. Both HA-pair members are now amber and trending toward failure simultaneously — exactly the correlated-failure risk the staged plan tried to bound.",
+      "data": { "host": "TALOS-R1B", "service_state": "Running", "http_health": 200, "eventlog_errors": 4, "memory_mb": 1395, "health": "amber" }
+    },
+    {
+      "seq": 18,
+      "t": 170.0,
+      "type": "breach",
+      "actor": "monitor",
+      "title": "BREACH — TALOS-R1A memory over threshold",
+      "body": "TALOS-R1A memory_mb has crossed 1500MB — currently 1684MB. Hard breach of the ring gate on the first HA-pair member.",
+      "data": { "host": "TALOS-R1A", "metric": "memory_mb", "value": 1684, "threshold": 1500 }
+    },
+    {
+      "seq": 19,
+      "t": 172.0,
+      "type": "breach",
+      "actor": "monitor",
+      "title": "BREACH — TALOS-R1B HTTP health failing",
+      "body": "TALOS-R1B HTTP health has flipped 200 → 500. Both members of the HA pair are now breaching at once. If this were the simultaneous plan from S2, the ring would already be fully down with no canary warning.",
+      "data": { "host": "TALOS-R1B", "metric": "http_health", "value": 500, "threshold": 200 }
+    },
+    {
+      "seq": 20,
+      "t": 174.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-R1A RED",
+      "body": "TALOS-R1A: memory 1772MB, HTTP 500, 8 errors. Red on 2.1.5.",
+      "data": { "host": "TALOS-R1A", "service_state": "Running", "http_health": 500, "eventlog_errors": 8, "memory_mb": 1772, "health": "red" }
+    },
+    {
+      "seq": 21,
+      "t": 175.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-R1B RED",
+      "body": "TALOS-R1B: memory 1741MB, HTTP 500, 7 errors. Red on 2.1.5. The whole HA pair is failing.",
+      "data": { "host": "TALOS-R1B", "service_state": "Running", "http_health": 500, "eventlog_errors": 7, "memory_mb": 1741, "health": "red" }
+    },
+    {
+      "seq": 22,
+      "t": 176.0,
+      "type": "gate_eval",
+      "actor": "monitor",
+      "title": "Ring gate: FAIL (TALOS-R1A)",
+      "body": "TALOS-R1A fails the ring gate — memory 1772MB > 1500, HTTP 500 ≠ 200, 8 errors > 5. The gate blocks any further promotion and triggers rollback.",
+      "data": {
+        "host": "TALOS-R1A",
+        "gate": "ring_gate",
+        "result": "fail",
+        "metrics": { "service_state": "Running", "http_health": 500, "eventlog_errors": 8, "memory_mb": 1772 },
+        "violations": [
+          "memory_mb 1772 exceeds max_memory_mb 1500",
+          "http_health 500 != required 200",
+          "eventlog_errors 8 exceeds max_eventlog_errors 5"
+        ]
+      }
+    },
+    {
+      "seq": 23,
+      "t": 177.0,
+      "type": "gate_eval",
+      "actor": "monitor",
+      "title": "Ring gate: FAIL (TALOS-R1B)",
+      "body": "TALOS-R1B fails the ring gate too — memory 1741MB > 1500, HTTP 500 ≠ 200, 7 errors > 5. Both HA-pair members are over the line.",
+      "data": {
+        "host": "TALOS-R1B",
+        "gate": "ring_gate",
+        "result": "fail",
+        "metrics": { "service_state": "Running", "http_health": 500, "eventlog_errors": 7, "memory_mb": 1741 },
+        "violations": [
+          "memory_mb 1741 exceeds max_memory_mb 1500",
+          "http_health 500 != required 200",
+          "eventlog_errors 7 exceeds max_eventlog_errors 5"
+        ]
+      }
+    },
+    {
+      "seq": 24,
+      "t": 178.0,
+      "type": "narration",
+      "actor": "system",
+      "title": "Both ring members failed — fleet rollback",
+      "body": "The regression escaped the canary and hit both production members. Because both are on the bad build, the Executor performs a fleet-scope rollback of the entire ring1 HA pair to the known-good 2.1.3.",
+      "data": { "text": "Escaped the canary, caught on the ring. Rolling the whole HA pair back." }
+    },
+    {
+      "seq": 25,
+      "t": 179.0,
+      "type": "rollback",
+      "actor": "executor",
+      "title": "ROLLBACK fleet → TALOS-R1A, TALOS-R1B → 2.1.3",
+      "body": "Scope is fleet: both TALOS-R1A and TALOS-R1B are reverted from 2.1.5 to 2.1.3 together, restoring the known-good production build. TALOS-CANARY was already rolled forward-then-back-safe; the ring is the focus of the recovery.",
+      "data": {
+        "scope": "fleet",
+        "hosts": ["TALOS-R1A", "TALOS-R1B"],
+        "to_version": "2.1.3",
+        "reason": "ring_gate FAIL on both HA-pair members — 2.1.5 regression escaped the canary and breached on ring1."
+      }
+    },
+    {
+      "seq": 26,
+      "t": 182.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-R1A green on 2.1.3",
+      "body": "TALOS-R1A reverted to 2.1.3 and green — memory nominal, HTTP 200, errors cleared.",
+      "data": { "host": "TALOS-R1A", "service_state": "Running", "http_health": 200, "eventlog_errors": 0, "memory_mb": 802, "health": "green" }
+    },
+    {
+      "seq": 27,
+      "t": 183.0,
+      "type": "health",
+      "actor": "fleet",
+      "title": "TALOS-R1B green on 2.1.3",
+      "body": "TALOS-R1B reverted to 2.1.3 and green. The HA pair is fully restored to the known-good build. TALOS-CANARY is also back on 2.1.3.",
+      "data": { "host": "TALOS-R1B", "service_state": "Running", "http_health": 200, "eventlog_errors": 1, "memory_mb": 814, "health": "green" }
+    },
+    {
+      "seq": 28,
+      "t": 184.0,
+      "type": "done",
+      "actor": "system",
+      "title": "Done — caught at the ring",
+      "body": "This 2.1.5 regression was armed to hide from the canary and only express on ring1. It passed the canary clean, but the ring gate caught both HA-pair members as they degraded and rolled the entire ring back to 2.1.3. The staged plan still contained it — sequential deploys plus a ring soak meant the gate fired before the outage became permanent, and the rollback was a clean fleet-scope revert rather than a scramble.",
+      "data": { "outcome": "caught_at_ring", "summary": "2.1.5 escaped the canary, breached on ring1; fleet-scope rollback of TALOS-R1A and TALOS-R1B to 2.1.3." }
+    }
+  ],
+  "audit_records": [
+    { "id": 1, "action": "deploy TALOS-CANARY 2.1.3 -> 2.1.5", "actor": "executor", "ts": "2026-07-02T18:00:06Z" },
+    { "id": 2, "action": "gate_eval TALOS-CANARY canary_gate -> pass", "actor": "monitor", "ts": "2026-07-02T18:02:09Z" },
+    { "id": 3, "action": "approval ring1 -> granted", "actor": "system", "ts": "2026-07-02T18:02:11Z" },
+    { "id": 4, "action": "deploy TALOS-R1A 2.1.3 -> 2.1.5", "actor": "executor", "ts": "2026-07-02T18:02:12Z" },
+    { "id": 5, "action": "deploy TALOS-R1B 2.1.3 -> 2.1.5", "actor": "executor", "ts": "2026-07-02T18:02:14Z" },
+    { "id": 6, "action": "breach TALOS-R1A memory_mb 1684 > 1500", "actor": "monitor", "ts": "2026-07-02T18:02:50Z" },
+    { "id": 7, "action": "breach TALOS-R1B http_health 500 != 200", "actor": "monitor", "ts": "2026-07-02T18:02:52Z" },
+    { "id": 8, "action": "gate_eval TALOS-R1A ring_gate -> fail", "actor": "monitor", "ts": "2026-07-02T18:02:56Z" },
+    { "id": 9, "action": "gate_eval TALOS-R1B ring_gate -> fail", "actor": "monitor", "ts": "2026-07-02T18:02:57Z" },
+    { "id": 10, "action": "rollback TALOS-R1A,TALOS-R1B 2.1.5 -> 2.1.3 scope=fleet", "actor": "executor", "ts": "2026-07-02T18:02:59Z" }
+  ]
+}
