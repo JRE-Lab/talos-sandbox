@@ -107,7 +107,7 @@ Then in a browser open **`https://talos.<yourdomain>/`** and confirm:
 - the **`SANDBOX — simulated fleet · real agents`** badge is present,
 - the **`Watch it run on real VMs → [video]`** link is present (and points at your video if
   you set `VIDEO_URL`),
-- the five scenario buttons (`s1`, `s2`, `s3`, `s3b`, `s4`) load and step through,
+- the six scenario buttons (`s1`, `s2`, `s3`, `s3b`, `s3c`, `s4`) load and step through,
 - the Audit panel's **Verify** shows the chain OK and **Tamper a record** shows it failing,
 - the live box is **hidden** (it should be, with live mode off).
 

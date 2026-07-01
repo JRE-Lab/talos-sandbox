@@ -63,7 +63,7 @@ replay mode; live mode stays hidden unless you opt in (see "Replay vs live" belo
 
 ## The scenarios
 
-Five curated replays, each demonstrating one moment. They are recordings of the *real*
+Six curated replays, each demonstrating one moment. They are recordings of the *real*
 agents run against the sim backend, captured once and replayed deterministically.
 
 | Scenario | id | What it demonstrates |
@@ -72,6 +72,7 @@ agents run against the sim backend, captured once and replayed deterministically
 | **Block the bad plan** | `s2` | The Innovation moment, interactive. An urgent directive asks to "patch all 3 now"; the Planner proposes a high-risk plan that takes down **both HA-pair members at once**; the Critic issues an unmistakable **reject** naming the blast radius; the Planner revises (canary first, HA pair one at a time); the Critic approves. |
 | **Catch the regression** | `s3` | Deploy a bad build (`2.1.5`). Health goes green, then breaches during soak — `memory_mb` climbs, `http_health` flips 200→500, eventlog errors climb past the gate. The gate fails and the Executor **auto-rolls-back** canary to `2.1.3`. Caught at the canary, with a visible soak timer and breach time. |
 | **Escape to ring** | `s3b` | Same regression, but armed only on `ring1` hosts — so the canary passes clean, the rollout is approved and promoted, and the breach surfaces only *after* promotion, triggering a **fleet-scale rollback**. Shows that the gates catch it even when it slips the canary. |
+| **Regression → auto-heal** | `s3c` | The demo headline. Same regression as `s3`, but the loop doesn't stop at "undo": caught → rolled back to `2.1.3` → a **Diagnostician** diagnoses the software regression → TALOS **auto-heals** the fleet forward to the patched `2.1.6`, with no human in the loop. Every step lands in the audit chain. |
 | **Verify the audit** | `s4` | The cryptographic-accountability moment, made tactile. A compact run whose point is its audit records. Click **Verify** → the hash chain is OK. Click **Tamper a record** → the server flips one record and the chain **FAILS** at exactly that link, highlighted on screen. |
 
 ---
