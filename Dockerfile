@@ -26,4 +26,6 @@ COPY scripts/ ./scripts/
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Listen on $PORT when a PaaS (Render/Railway/Fly) injects one; default 8000 for
+# the VPS + Caddy path (Caddy proxies to app:8000).
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -1,0 +1,19 @@
+# Render Blueprint — one-click public deploy of the TALOS Sandbox (replay mode).
+#
+# In Render:  New +  ->  Blueprint  ->  connect the JRE-Lab/talos-sandbox repo.
+# Render builds the Dockerfile and serves the replay sandbox on a public HTTPS URL
+# (e.g. https://talos-sandbox.onrender.com). Replay mode needs no secrets; live mode
+# stays off. After it deploys, set VIDEO_URL (below or in the dashboard) to your real
+# demo video so the "Watch it run on real VMs" link works.
+services:
+  - type: web
+    name: talos-sandbox
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: LIVE_MODE_ENABLED
+        value: "false"
+      - key: VIDEO_URL
+        value: "REPLACE_WITH_VIDEO_URL"
