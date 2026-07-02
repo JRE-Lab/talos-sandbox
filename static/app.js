@@ -211,6 +211,10 @@
       state.awaitingApproval = true;
       enableApprove(true);
       pause(); // hold here until the judge clicks Approve (replay) or live advances
+      if (el.coach) {
+        el.coach.innerHTML = 'Playback is <b>paused at a human gate</b> &mdash; you are the operator. ' +
+          'Click the green <b>&#10004; Approve</b> button below the feed to promote the ring.';
+      }
     }
 
     // build and append the feed line
@@ -462,8 +466,11 @@
 
   function appendFeedLine(node) {
     if (el.feed.querySelector(".feed-empty")) { clearChildren(el.feed); }
+    // Only follow the newest event if the reader is already near the bottom —
+    // otherwise scrolling up to re-read earlier events gets yanked back down.
+    var follow = (el.feed.scrollHeight - el.feed.scrollTop - el.feed.clientHeight) < 90;
     el.feed.appendChild(node);
-    el.feed.scrollTop = el.feed.scrollHeight;
+    if (follow) { el.feed.scrollTop = el.feed.scrollHeight; }
   }
 
   // --------------------------------------------------------------------------
@@ -660,6 +667,9 @@
     state.awaitingApproval = false;
     enableApprove(false);
     hideSoakTimer();
+    if (el.coach && state.scenarioId && SCENARIO_TIPS[state.scenarioId]) {
+      el.coach.innerHTML = 'Approved &mdash; you just released the gate, exactly what an operator does in production. ' + SCENARIO_TIPS[state.scenarioId];
+    }
     // resume play from where we paused
     if (state.mode === "replay") {
       state.playing = true;

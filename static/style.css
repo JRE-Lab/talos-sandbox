@@ -338,7 +338,8 @@ h2 {
 .btn-tamper { background: #2a1717; border-color: #5a2a2a; color: #ffd0d0; }
 
 /* ---------- Feed ---------- */
-.panel-feed { display: flex; flex-direction: column; max-height: calc(100vh - 120px); }
+/* Height budget: topbar (~54) + coach bar (~54) + layout padding (~28) + footer (~40). */
+.panel-feed { display: flex; flex-direction: column; max-height: calc(100vh - 178px); }
 .feed-head { gap: 14px; }
 .feed-head-left { display: flex; align-items: center; gap: 12px; }
 .feed-head-right { display: flex; align-items: center; gap: 10px; }
@@ -378,7 +379,7 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-height: 240px;
+  min-height: 160px;
 }
 .feed-empty {
   color: var(--text-faint);
@@ -553,6 +554,15 @@ h2 {
   background: rgba(255,255,255,0.012);
 }
 .btn.ctl { padding: 7px 12px; }
+/* Make the Approve gate impossible to miss when playback is waiting on it. */
+.btn-approve:not(:disabled) {
+  background: #14301f; border-color: var(--green); color: #c9f4d6;
+  animation: approve-pulse 1.4s ease-in-out infinite;
+}
+@keyframes approve-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(63,207,142,0.45); }
+  50%      { box-shadow: 0 0 0 7px rgba(63,207,142,0); }
+}
 
 /* ---------- Audit ---------- */
 .audit-controls {
